@@ -9,7 +9,7 @@ services:
     name: market-event-impact-web
     plan: free
     runtime: node
-    buildCommand: npm install && npx prisma migrate deploy && npm run build
+    buildCommand: npm ci && npx prisma migrate deploy && npm run build
     startCommand: npm run start
     envVars:
       - key: DATABASE_URL
@@ -26,7 +26,7 @@ services:
     name: market-event-impact-cron
     plan: starter
     runtime: node
-    buildCommand: npm install
+    buildCommand: npm ci
     startCommand: npm run cron
     envVars:
       - key: DATABASE_URL

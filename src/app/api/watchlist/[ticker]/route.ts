@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+
 const USER_ID = "demo-user";
 
 export async function DELETE(_req: Request, { params }: { params: { ticker: string } }) {

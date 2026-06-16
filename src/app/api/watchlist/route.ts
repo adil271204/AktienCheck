@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AddWatchlistItemSchema } from "@/lib/schemas";
 
+export const dynamic = "force-dynamic";
+
 const USER_ID = "demo-user";
 
 export async function GET() {

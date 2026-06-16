@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { toAnalysisDTO } from "@/lib/serializers";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const analysis = await prisma.impactAnalysis.findUnique({
     where: { id: params.id },

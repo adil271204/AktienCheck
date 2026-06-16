@@ -89,8 +89,8 @@ npm install
 cp .env.example .env
 # edit .env and set DATABASE_URL to your Postgres connection string
 
-# 3. Create the database schema
-npx prisma migrate dev --name init
+# 3. Apply the committed migration (creates all tables/enums in prisma/migrations/)
+npx prisma migrate dev
 
 # 4. Seed mock data (companies, default watchlist, one pipeline run)
 npm run prisma:seed
@@ -115,25 +115,69 @@ default `*/15 * * * *`). You can also trigger a single run manually:
 curl -X POST http://localhost:3000/api/cron/run
 ```
 
+## Pushing to GitHub
+
+If you haven't already pushed this project:
+
+```bash
+git init                                   # skip if already a git repo
+git add -A
+git commit -m "Initial commit"
+git branch -M main
+git remote add origin https://github.com/<your-username>/<your-repo>.git
+git push -u origin main
+```
+
+(If `git push` is rejected with a 403/permission error, your remote URL or credentials are wrong —
+re-check the repo exists at that exact path under your account and that you're authenticated, e.g. via
+`gh auth login` or a Personal Access Token with `repo` scope.)
+
 ## Deploying to Render
 
 This repo includes a `render.yaml` Render Blueprint defining:
-- a managed PostgreSQL database
-- the Next.js web service (runs `prisma migrate deploy` during build, then `next build`/`next start`)
-- an optional background worker running `npm run cron` (background workers require a paid Render plan —
-  on the free tier, omit this service and instead schedule `POST /api/cron/run` via Render Cron Jobs or
-  an external scheduler)
+- a managed PostgreSQL database (`market-event-impact-db`)
+- the Next.js web service (`market-event-impact-web`) — build runs `npm install`, then
+  `npx prisma migrate deploy` (applies the committed migration in `prisma/migrations/`), then
+  `npm run build` (`prisma generate && next build`); start runs `npm run start`
+  (`next start -p ${PORT:-3000}`, honoring Render's injected `$PORT`)
+- an optional background worker (`market-event-impact-cron`) running `npm run cron` — **background
+  workers require a paid Render plan.** On the free tier, delete/comment out this service in
+  `render.yaml` and instead schedule `POST https://<your-app>.onrender.com/api/cron/run` via Render's
+  **Cron Jobs** feature or an external scheduler (e.g. cron-job.org) hitting that URL every 15 minutes.
 
-To deploy:
-1. Push this repo to GitHub.
-2. In the Render dashboard, choose **New > Blueprint** and point it at the repo — Render will read
-   `render.yaml` and provision the database + web service (and worker, if you keep it / upgrade the plan).
-3. Render injects `DATABASE_URL` automatically from the managed database.
-4. After the first deploy, run the seed once (via the Render shell, or by hitting `/api/cron/run` to
-   populate mock news/macro data without seeding a default watchlist):
+### Exact steps
+
+1. **Push the repo to GitHub** (see above) if you haven't already.
+2. In the [Render dashboard](https://dashboard.render.com/), click **New +** → **Blueprint**.
+3. Connect your GitHub account if prompted, then select this repository.
+4. Render detects `render.yaml` and shows a preview of the resources it will create (1 database, 1 web
+   service, 1 worker). Give the blueprint a name and click **Apply**.
+   - If you're on the free tier and don't want the worker, remove its block from `render.yaml` (or set
+     its plan/visibility so Render skips it) before this step, or just delete the worker service from
+     the Render dashboard after creation.
+5. Render provisions the Postgres database first, then builds and deploys the web service. Build logs
+   will show `prisma migrate deploy` applying `20260616000000_init` — this creates all tables/enums in
+   the fresh database. No manual migration step is needed.
+6. Once the web service shows **Live**, open its URL and check `GET /api/health` — it should return
+   `{"status":"ok","database":"connected",...}` with a `200` status. (It will correctly return `503` if
+   the database isn't reachable yet — useful for debugging a failed first boot.)
+7. **Seed mock data** (companies, default watchlist, and one pipeline run of mock news/macro events) by
+   opening a shell for the web service in the Render dashboard (**Shell** tab) and running:
    ```bash
-   npx prisma db seed
+   npm run prisma:seed
    ```
+   Alternatively, trigger the pipeline (without the default watchlist) by calling the API directly:
+   ```bash
+   curl -X POST https://<your-app>.onrender.com/api/cron/run
+   ```
+8. Visit the deployed URL — the Dashboard, Watchlist, Macro Event Radar, Sector Impact Map, and Alerts
+   pages should now show data.
+
+### Updating environment variables on Render
+
+`DATABASE_URL` is wired automatically via `fromDatabase` in `render.yaml` — you should not need to set it
+manually. To change the mock pipeline's schedule, edit `CRON_SCHEDULE` on the worker service (or the
+external scheduler hitting `/api/cron/run`) under the service's **Environment** tab.
 
 ## Design principles (enforced throughout the app)
 

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getAllEventTypes, getSectorImpactsForEventType } from "@/lib/services/sector-impact-engine";
 
+export const dynamic = "force-dynamic";
+
 /** Sector Impact Map — static event-type-to-sector mapping rules (Sector Impact Map page). */
 export async function GET() {
   const eventTypes = getAllEventTypes();

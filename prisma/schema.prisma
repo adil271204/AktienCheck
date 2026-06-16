@@ -1,0 +1,264 @@
+// Market Event Impact Intelligence System — Prisma schema
+// Research-analysis data model. No trading signals are stored or implied.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum MacroEventType {
+  CENTRAL_BANK_RATE_DECISION
+  TARIFF
+  EXPORT_RESTRICTION
+  DEFENSE_SPENDING_INCREASE
+  AI_REGULATION
+  ENERGY_POLICY_CHANGE
+  SEMICONDUCTOR_SUBSIDY
+  TRADE_AGREEMENT
+  SANCTIONS
+  GEOPOLITICAL_CONFLICT
+  INFLATION_REPORT
+  ELECTION_OUTCOME
+  OTHER
+}
+
+enum ImpactDirection {
+  BULLISH
+  BEARISH
+  NEUTRAL
+  MIXED
+  UNKNOWN
+}
+
+enum ExposureType {
+  DIRECT
+  INDIRECT
+  SUPPLY_CHAIN
+  REGULATORY
+  DEMAND
+  COST
+}
+
+enum AnalysisType {
+  COMPANY_NEWS
+  MACRO_EVENT
+}
+
+enum TimeHorizon {
+  INTRADAY
+  SHORT_TERM
+  MEDIUM_TERM
+  LONG_TERM
+  UNKNOWN
+}
+
+enum PricedInStatus {
+  NOT_PRICED_IN
+  PARTIALLY_PRICED_IN
+  MOSTLY_PRICED_IN
+  UNKNOWN
+}
+
+enum SurpriseLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ExpectationGap {
+  BETTER_THAN_EXPECTED
+  IN_LINE
+  WORSE_THAN_EXPECTED
+  UNKNOWN
+}
+
+enum AlertSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// ---------- Core entities ----------
+
+model Company {
+  id          String   @id @default(cuid())
+  ticker      String   @unique
+  name        String
+  sector      String
+  industry    String
+  country     String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  watchlistItems  WatchlistItem[]
+  newsItems       NewsItem[]
+  companyImpacts  CompanyImpact[]
+  impactAnalyses  ImpactAnalysis[]
+  alerts          Alert[]
+
+  @@index([sector])
+  @@index([industry])
+}
+
+model WatchlistItem {
+  id        String   @id @default(cuid())
+  userId    String   @default("demo-user")
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  addedAt   DateTime @default(now())
+
+  @@unique([userId, companyId])
+}
+
+model Source {
+  id            String   @id @default(cuid())
+  title         String
+  url           String
+  publisher     String
+  publishedAt   DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  newsItems       NewsItem[]
+  macroEvents     MacroEvent[]
+  impactAnalyses  AnalysisSource[]
+}
+
+model NewsItem {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  headline    String
+  body        String
+  publishedAt DateTime @default(now())
+  sourceId    String?
+  source      Source?  @relation(fields: [sourceId], references: [id])
+  createdAt   DateTime @default(now())
+
+  impactAnalyses ImpactAnalysis[]
+
+  @@index([companyId])
+  @@index([publishedAt])
+}
+
+model MacroEvent {
+  id          String         @id @default(cuid())
+  type        MacroEventType
+  title       String
+  description String
+  country     String
+  occurredAt  DateTime       @default(now())
+  sourceId    String?
+  source      Source?        @relation(fields: [sourceId], references: [id])
+  createdAt   DateTime       @default(now())
+
+  sectorImpacts  SectorImpact[]
+  impactAnalyses ImpactAnalysis[]
+
+  @@index([type])
+  @@index([occurredAt])
+}
+
+// Maps an event type (via a specific MacroEvent occurrence) to an affected sector/industry
+model SectorImpact {
+  id              String           @id @default(cuid())
+  macroEventId    String
+  macroEvent      MacroEvent       @relation(fields: [macroEventId], references: [id], onDelete: Cascade)
+  sector          String
+  industry        String?
+  direction       ImpactDirection
+  effectType      String // "direct" | "indirect" description label
+  explanation     String
+  createdAt       DateTime         @default(now())
+
+  companyImpacts  CompanyImpact[]
+
+  @@index([sector])
+  @@index([macroEventId])
+}
+
+// Maps an affected sector (from a SectorImpact) to a specific public company
+model CompanyImpact {
+  id             String        @id @default(cuid())
+  companyId      String
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sectorImpactId String
+  sectorImpact   SectorImpact  @relation(fields: [sectorImpactId], references: [id], onDelete: Cascade)
+  exposureType   ExposureType
+  reasoning      String
+  createdAt      DateTime      @default(now())
+
+  @@index([companyId])
+  @@index([sectorImpactId])
+}
+
+// The core research-analysis object — produced for either a NewsItem or a MacroEvent
+model ImpactAnalysis {
+  id           String        @id @default(cuid())
+  type         AnalysisType
+  newsItemId   String?
+  newsItem     NewsItem?     @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
+  macroEventId String?
+  macroEvent   MacroEvent?   @relation(fields: [macroEventId], references: [id], onDelete: Cascade)
+  companyId    String?
+  company      Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  classification      ImpactDirection
+  headlineImpactScore  Float // -1.0 .. 1.0
+  adjustedImpactScore  Float // -1.0 .. 1.0
+  confidenceScore      Float // 0.0 .. 1.0
+  timeHorizon          TimeHorizon
+  reasoning            String
+  risks                String[]
+
+  // Priced-in assessment (embedded as scalar fields, see PricedInAssessment zod type)
+  pricedInStatus          PricedInStatus
+  pricedInSurpriseLevel   SurpriseLevel
+  pricedInExpectationGap  ExpectationGap
+  pricedInReasoning       String
+  pricedInConfidence      Float // 0.0 .. 1.0
+
+  createdAt DateTime @default(now())
+
+  sources AnalysisSource[]
+  alerts  Alert[]
+
+  @@index([newsItemId])
+  @@index([macroEventId])
+  @@index([companyId])
+}
+
+// Join table: ImpactAnalysis <-> Source (many-to-many)
+model AnalysisSource {
+  id               String         @id @default(cuid())
+  impactAnalysisId String
+  impactAnalysis   ImpactAnalysis @relation(fields: [impactAnalysisId], references: [id], onDelete: Cascade)
+  sourceId         String
+  source           Source         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([impactAnalysisId, sourceId])
+}
+
+model Alert {
+  id               String         @id @default(cuid())
+  impactAnalysisId String
+  impactAnalysis   ImpactAnalysis @relation(fields: [impactAnalysisId], references: [id], onDelete: Cascade)
+  companyId        String
+  company          Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  eventSummary     String
+  affectedSectors  String[]
+  possibleImpact   String
+  severity         AlertSeverity  @default(MEDIUM)
+  isRead           Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+
+  @@index([companyId])
+  @@index([createdAt])
+}

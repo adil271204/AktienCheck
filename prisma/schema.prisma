@@ -97,11 +97,12 @@ model Company {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  watchlistItems  WatchlistItem[]
-  newsItems       NewsItem[]
-  companyImpacts  CompanyImpact[]
-  impactAnalyses  ImpactAnalysis[]
-  alerts          Alert[]
+  watchlistItems       WatchlistItem[]
+  newsItems            NewsItem[]
+  companyImpacts       CompanyImpact[]
+  impactAnalyses       ImpactAnalysis[]
+  alerts               Alert[]
+  newsClusterAnalyses  NewsClusterAnalysis[]
 
   @@index([sector])
   @@index([industry])
@@ -243,6 +244,41 @@ model AnalysisSource {
   source           Source         @relation(fields: [sourceId], references: [id], onDelete: Cascade)
 
   @@unique([impactAnalysisId, sourceId])
+}
+
+// Multi-news impact synthesis — groups several NewsItems for a company within a
+// time window and produces a combined directional research signal.
+model NewsClusterAnalysis {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  timeWindow            String  // "24h" | "3d" | "7d" | "30d"
+  clusterTitle          String
+  overallSentiment      String  // ImpactDirection value
+  headlineImpactScore   Float
+  adjustedImpactScore   Float
+  confidence            Float
+
+  // JSON arrays / objects stored as text
+  selectedNewsItemIds   Json    // String[]
+  dominantDrivers       Json    // { theme: string; weight: number; direction: string }[]
+  interactionEffects    Json    // { type: "reinforcing"|"offsetting"|"neutral"; description: string }[]
+  mostImportantNews     Json    // { newsItemId: string; headline: string; weight: number }[]
+  futureWatchItems      Json    // string[]
+
+  pricedInStatus        String
+  surpriseLevel         String
+  expectationGap        String
+  pricedInReasoning     String
+  reasoning             String
+  risks                 Json    // string[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+  @@index([companyId, timeWindow])
 }
 
 model Alert {

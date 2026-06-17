@@ -7,6 +7,7 @@ import { ImpactBadge } from "@/components/shared/impact-badge";
 import { PricedInBadge } from "@/components/shared/priced-in-badge";
 import { Disclaimer } from "@/components/shared/disclaimer";
 import { AnalyzeButton } from "@/components/companies/analyze-button";
+import { ClusterAnalysisPanel } from "@/components/companies/cluster-analysis-panel";
 import { formatDate, formatEnumLabel } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
   const company = await prisma.company.findUnique({ where: { ticker } });
   if (!company) notFound();
 
-  const [news, analyses, companyImpacts, watchlistItem] = await Promise.all([
+  const [news, analyses, companyImpacts, watchlistItem, latestCluster] = await Promise.all([
     prisma.newsItem.findMany({
       where: { companyId: company.id },
       include: { source: true },
@@ -34,6 +35,10 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
     }),
     prisma.watchlistItem.findFirst({
       where: { companyId: company.id, userId: "demo-user" },
+    }),
+    prisma.newsClusterAnalysis.findFirst({
+      where: { companyId: company.id, timeWindow: "7d" },
+      orderBy: { createdAt: "desc" },
     }),
   ]);
 
@@ -107,6 +112,12 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
           ))}
         </CardContent>
       </Card>
+
+      <ClusterAnalysisPanel
+        ticker={company.ticker}
+        initialAnalysis={latestCluster ? JSON.parse(JSON.stringify(latestCluster)) : null}
+        initialWindow="7d"
+      />
 
       <Card>
         <CardHeader>

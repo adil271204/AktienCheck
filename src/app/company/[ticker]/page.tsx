@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { ImpactBadge } from "@/components/shared/impact-badge";
 import { PricedInBadge } from "@/components/shared/priced-in-badge";
+import { Disclaimer } from "@/components/shared/disclaimer";
+import { AnalyzeButton } from "@/components/companies/analyze-button";
 import { formatDate, formatEnumLabel } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -14,8 +16,12 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
   const company = await prisma.company.findUnique({ where: { ticker } });
   if (!company) notFound();
 
-  const [news, analyses, companyImpacts] = await Promise.all([
-    prisma.newsItem.findMany({ where: { companyId: company.id }, include: { source: true }, orderBy: { publishedAt: "desc" } }),
+  const [news, analyses, companyImpacts, watchlistItem] = await Promise.all([
+    prisma.newsItem.findMany({
+      where: { companyId: company.id },
+      include: { source: true },
+      orderBy: { publishedAt: "desc" },
+    }),
     prisma.impactAnalysis.findMany({
       where: { companyId: company.id },
       include: { macroEvent: true, newsItem: true },
@@ -26,13 +32,18 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
       include: { sectorImpact: { include: { macroEvent: true } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.watchlistItem.findFirst({
+      where: { companyId: company.id, userId: "demo-user" },
+    }),
   ]);
 
   return (
     <div className="space-y-6">
+      <Disclaimer compact />
+
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <CardTitle className="text-xl">
                 {company.name} ({company.ticker})
@@ -41,11 +52,24 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
                 {company.sector} · {company.industry} · {company.country}
               </CardDescription>
             </div>
+            <div className="flex items-center gap-2">
+              {watchlistItem && (
+                <Badge variant="outline" className="text-xs">
+                  On watchlist
+                </Badge>
+              )}
+              {/* Show the manual analyze button only when there are no analyses yet */}
+              {analyses.length === 0 && (
+                <AnalyzeButton ticker={company.ticker} />
+              )}
+            </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">{company.description}</p>
-        </CardContent>
+        {company.description && (
+          <CardContent>
+            <p className="text-sm text-muted-foreground">{company.description}</p>
+          </CardContent>
+        )}
       </Card>
 
       <Card>
@@ -54,11 +78,25 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
           <CardDescription>Research signals derived from company news and macro events.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {analyses.length === 0 && <p className="text-sm text-muted-foreground">No analyses yet.</p>}
+          {analyses.length === 0 && (
+            <div className="rounded-md border border-dashed border-border p-6 text-center">
+              <p className="text-sm text-muted-foreground">No analyses yet.</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Add this company to your watchlist to trigger an automatic initial analysis,
+                or use the &ldquo;Run analysis&rdquo; button above.
+              </p>
+            </div>
+          )}
           {analyses.map((a) => (
-            <Link key={a.id} href={`/analysis/${a.id}`} className="block rounded-md border border-border p-3 hover:bg-muted/50">
+            <Link
+              key={a.id}
+              href={`/analysis/${a.id}`}
+              className="block rounded-md border border-border p-3 hover:bg-muted/50"
+            >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium">{a.newsItem?.headline ?? a.macroEvent?.title}</span>
+                <span className="text-sm font-medium">
+                  {a.newsItem?.headline ?? a.macroEvent?.title}
+                </span>
                 <div className="flex items-center gap-2">
                   <ImpactBadge classification={a.classification} />
                   <PricedInBadge status={a.pricedInStatus} />
@@ -75,7 +113,9 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
           <CardTitle>Recent news</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {news.length === 0 && <p className="text-sm text-muted-foreground">No mock news collected yet.</p>}
+          {news.length === 0 && (
+            <p className="text-sm text-muted-foreground">No news collected yet.</p>
+          )}
           {news.map((n) => (
             <div key={n.id} className="rounded-md border border-border p-3">
               <p className="text-sm font-medium">{n.headline}</p>
@@ -83,8 +123,13 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
               <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
                 <span>{formatDate(n.publishedAt)}</span>
                 {n.source && (
-                  <a href={n.source.url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                    {n.source.publisher} source
+                  <a
+                    href={n.source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    {n.source.publisher}
                   </a>
                 )}
               </div>
@@ -96,14 +141,20 @@ export default async function CompanyDetailPage({ params }: { params: { ticker: 
       <Card>
         <CardHeader>
           <CardTitle>Exposure mapping</CardTitle>
-          <CardDescription>How macro events translate into exposure for this company.</CardDescription>
+          <CardDescription>
+            How macro events translate into exposure for this company.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {companyImpacts.length === 0 && <p className="text-sm text-muted-foreground">No exposure mappings yet.</p>}
+          {companyImpacts.length === 0 && (
+            <p className="text-sm text-muted-foreground">No exposure mappings yet.</p>
+          )}
           {companyImpacts.map((ci) => (
             <div key={ci.id} className="rounded-md border border-border p-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">{ci.sectorImpact.macroEvent.title}</span>
+                <span className="text-sm font-medium">
+                  {ci.sectorImpact.macroEvent.title}
+                </span>
                 <Badge variant="outline">{formatEnumLabel(ci.exposureType)} exposure</Badge>
               </div>
               <p className="mt-1 text-sm text-muted-foreground">{ci.reasoning}</p>

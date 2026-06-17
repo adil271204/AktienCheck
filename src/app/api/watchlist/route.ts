@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { AddWatchlistItemSchema } from "@/lib/schemas";
+import { analyzeCompanyOnWatchlistAdd } from "@/lib/services/analyze-company";
 
 export const dynamic = "force-dynamic";
 
@@ -35,5 +36,11 @@ export async function POST(req: Request) {
     include: { company: true },
   });
 
-  return NextResponse.json(item, { status: 201 });
+  // Fire analysis in the background — do not await so the 201 response returns immediately.
+  // The analysis is idempotent: if the company already has analyses it exits early.
+  analyzeCompanyOnWatchlistAdd(company.id).catch((err) =>
+    console.error(`[analyze-on-add] failed for ${ticker}:`, err)
+  );
+
+  return NextResponse.json({ ...item, analysisTriggered: true }, { status: 201 });
 }

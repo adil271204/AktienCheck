@@ -3,7 +3,7 @@
 import { useState, useTransition, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Building2, MapPin, Layers, Plus, Minus, TrendingUp, TrendingDown, MoveHorizontal } from "lucide-react";
+import { Search, Building2, MapPin, Layers, Plus, Minus, TrendingUp, TrendingDown, MoveHorizontal, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -76,6 +76,7 @@ export function CompaniesClient({ initialCompanies, sectors, countries }: Props)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [watchlistPending, setWatchlistPending] = useState<string | null>(null);
+  const [analyzingTickers, setAnalyzingTickers] = useState<Set<string>>(new Set());
   const router = useRouter();
   const [, startTransition] = useTransition();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,13 +116,25 @@ export function CompaniesClient({ initialCompanies, sectors, countries }: Props)
       if (isInWatchlist) {
         await fetch(`/api/watchlist/${ticker}`, { method: "DELETE" });
       } else {
-        await fetch("/api/watchlist", {
+        const res = await fetch("/api/watchlist", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ticker }),
         });
+        if (res.ok) {
+          // Analysis runs in the background on the server; show a local "analyzing" badge
+          // and poll once after 3 s so the card updates with the first signal
+          setAnalyzingTickers((prev) => new Set(prev).add(ticker));
+          setTimeout(async () => {
+            await fetchCompanies(query, sector, country);
+            setAnalyzingTickers((prev) => {
+              const next = new Set(prev);
+              next.delete(ticker);
+              return next;
+            });
+          }, 3500);
+        }
       }
-      // Refresh to get updated watchlist state
       await fetchCompanies(query, sector, country);
       startTransition(() => router.refresh());
     } finally {
@@ -255,7 +268,12 @@ export function CompaniesClient({ initialCompanies, sectors, countries }: Props)
               )}
 
               {/* Latest analysis signal */}
-              {company.latestAnalysis ? (
+              {analyzingTickers.has(company.ticker) ? (
+                <div className="flex items-center gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Generating initial analysis…
+                </div>
+              ) : company.latestAnalysis ? (
                 <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
                   <span className="text-xs text-muted-foreground">Latest signal:</span>
                   <SignalBadge score={company.latestAnalysis.adjustedImpactScore} />
@@ -266,7 +284,7 @@ export function CompaniesClient({ initialCompanies, sectors, countries }: Props)
                 </div>
               ) : (
                 <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-                  No analysis yet — run the pipeline to generate signals.
+                  No analysis yet — add to watchlist to generate signals.
                 </p>
               )}
             </CardContent>

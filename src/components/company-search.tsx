@@ -71,8 +71,8 @@ export function CompanySearch({ className }: { className?: string }) {
   const showDropdown = open && (loading || results.length > 0 || query.trim().length > 0);
 
   return (
-    <div className={cn("relative", className)}>
-      <div className="relative">
+    <div className={cn("relative w-full min-w-0", className)}>
+      <div className="relative w-full">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         <input
           ref={inputRef}
@@ -108,7 +108,7 @@ export function CompanySearch({ className }: { className?: string }) {
           id="company-search-listbox"
           role="listbox"
           ref={listRef}
-          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto rounded-md border border-border bg-card shadow-lg"
+          className="absolute left-0 right-0 top-full z-50 mt-1 max-h-72 overflow-y-auto overflow-x-hidden rounded-md border border-border bg-card shadow-lg"
         >
           {loading && (
             <li className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">

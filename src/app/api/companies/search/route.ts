@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   const { q, sector, country, limit } = parsed.data;
 
   // Build Prisma where clause — all filters are optional and case-insensitive
-  const where: Parameters<typeof prisma.company.findMany>[0]["where"] = {};
+  const where: Prisma.CompanyWhereInput = {};
 
   if (sector) {
     where.sector = { contains: sector, mode: "insensitive" };

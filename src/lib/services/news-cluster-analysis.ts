@@ -8,10 +8,16 @@
  * Output schema: NewsClusterAnalysis (see prisma/schema.prisma).
  */
 
+import { Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
 import { seededFraction, clamp, classifyDirection } from "./classification";
 import { assessPricedIn } from "./priced-in-engine";
 import type { NewsClusterAnalysis } from "@prisma/client";
+
+// Prisma's Json type doesn't accept typed arrays directly — cast helper.
+function j<T>(v: T): Prisma.InputJsonValue {
+  return v as unknown as Prisma.InputJsonValue;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -238,17 +244,17 @@ export async function generateNewsClusterAnalysis(params: {
         headlineImpactScore: 0,
         adjustedImpactScore: 0,
         confidence: 0.1,
-        selectedNewsItemIds: [],
-        dominantDrivers: [],
-        interactionEffects: [],
-        mostImportantNews: [],
-        futureWatchItems: [`Watch for the first news item for ${company.ticker} to appear in the ${timeWindow} window.`],
+        selectedNewsItemIds: j([]),
+        dominantDrivers: j([]),
+        interactionEffects: j([]),
+        mostImportantNews: j([]),
+        futureWatchItems: j([`Watch for the first news item for ${company.ticker} to appear in the ${timeWindow} window.`]),
         pricedInStatus: placeholderAssessment.status,
         surpriseLevel: placeholderAssessment.surprise_level,
         expectationGap: placeholderAssessment.expectation_gap,
         pricedInReasoning: placeholderAssessment.reasoning,
         reasoning: `No news items found for ${company.ticker} within the selected ${timeWindow} time window. This synthesis cannot be computed — run the pipeline or add news data to generate a signal.`,
-        risks: ["Insufficient data: the time window contains no news items for this company."],
+        risks: j(["Insufficient data: the time window contains no news items for this company."]),
       },
     });
   }
@@ -346,17 +352,17 @@ export async function generateNewsClusterAnalysis(params: {
       headlineImpactScore,
       adjustedImpactScore,
       confidence,
-      selectedNewsItemIds: newsItems.map((n) => n.id),
-      dominantDrivers,
-      interactionEffects,
-      mostImportantNews,
-      futureWatchItems,
+      selectedNewsItemIds: j(newsItems.map((n) => n.id)),
+      dominantDrivers: j(dominantDrivers),
+      interactionEffects: j(interactionEffects),
+      mostImportantNews: j(mostImportantNews),
+      futureWatchItems: j(futureWatchItems),
       pricedInStatus: pricedIn.status,
       surpriseLevel: pricedIn.surprise_level,
       expectationGap: pricedIn.expectation_gap,
       pricedInReasoning: pricedIn.reasoning,
       reasoning,
-      risks,
+      risks: j(risks),
     },
   });
 }
